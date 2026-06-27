@@ -7,6 +7,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../core/weather_icons.dart';
 import '../../../../core/widgets/app_widgets.dart';
 import '../../../../core/widgets/cape_ring.dart';
+import '../../../../core/widgets/state_views.dart';
 import '../../domain/entities/hour_point.dart';
 import '../../domain/entities/weather_bundle.dart';
 import '../controllers/locale_controller.dart';
