@@ -1,7 +1,7 @@
 name: changi_agriweather
 description: Premium agricultural pinpoint-weather app for Village Changi, Sialkot.
 publish_to: "none"
-version: 1.0.0+1
+version: 2.0.0+2
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -12,11 +12,22 @@ dependencies:
   flutter_localizations:
     sdk: flutter
 
-  http: ^1.2.2
+  # State management
+  flutter_riverpod: ^2.5.1
+  # Routing
+  go_router: ^14.2.0
+  # Networking
+  dio: ^5.5.0+1
+  # Value equality for immutable models/entities
+  equatable: ^2.0.5
+  # Local persistence
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+
+  # Charts, maps, fonts, notifications
   fl_chart: ^0.69.0
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
-  shared_preferences: ^2.3.2
   flutter_local_notifications: ^17.2.3
   google_fonts: ^6.2.1
 

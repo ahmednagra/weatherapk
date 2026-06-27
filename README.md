@@ -1,123 +1,62 @@
-# Changi AgriWeather — Android App (Flutter, ready to build)
+# Changi AgriWeather — v2 (Flutter, Clean Architecture)
 
-A premium, animated, agricultural pinpoint-weather app for **Village Changi, Daska, Sialkot** (32.145°N, 74.526°E). Five screens — Now, Hourly, 7-Day, Radar, Farm — built around four farm decisions: **irrigate, spray, harvest, storm/flood risk.** Live data from Open-Meteo (free, no API key). English + Urdu (RTL). Local notifications. Offline caching.
+Premium agricultural pinpoint-weather app for **Village Changi, Daska, Sialkot** (32.145°N, 74.526°E). Five screens — Now, Hourly, 7-Day, Radar, Farm — built around real farm decisions: irrigate, spray, harvest, storm/frost/heat alerts. English + Urdu (RTL).
 
-> **This is now a COMPLETE Flutter project** — the full `android/` platform folder (MainActivity, Gradle files, v2 embedding, launcher icons) is included. You do **not** need to run `flutter create`. Just build.
+## What's new in v2
 
----
+**Architecture** — full feature-first Clean Architecture per the project guidelines:
 
-## ⚡ The v1-embedding error is fixed
+- **State:** Riverpod (`AsyncNotifier` for the forecast, `Notifier` for locale)
+- **Routing:** GoRouter `StatefulShellRoute` (per-tab navigation state)
+- **Network:** Dio (single configured client, logging interceptor)
+- **Persistence:** Hive (forecast cache + learned bias + language)
+- **Models:** immutable + Equatable, with DTO ↔ entity separation
+- **Errors:** typed `Failure` hierarchy, `Result<T>` (no exceptions past the data layer)
 
-If you previously saw **"Build failed due to use of deleted Android v1 embedding"**, that was because the Android platform files were missing. This package now ships the complete `android/` folder with proper **v2 embedding**: a real `MainActivity.kt` extending `io.flutter.embedding.android.FlutterActivity`, the `flutterEmbedding = 2` manifest marker, and modern Gradle config. The error will not recur.
+```
+lib/
+  core/            constants · errors · network · router · services · theme · widgets · l10n
+  features/
+    weather/
+      domain/      entities · repositories (interfaces) · usecases · services (bias maths)
+      data/        models (DTOs) · datasources (Dio + Hive) · repositories (impl)
+      presentation/ controllers (Riverpod) · providers (DI) · screens · widgets
+    farm/
+      domain/      farm decision rules + value types
+      presentation/ farm screen
+```
 
-**If your build tool already created its own `android/` folder, delete it and use the one in this package** (or copy this `android/` folder over it), then rebuild.
+**Accuracy core** (this is what closes the gap with paid apps for *your* field):
 
----
+- **Ground-truth bias correction** — learns the model's day/night temperature error against **OPST** (Sialkot airport METAR, ~13 km, 30-min reports) via a decaying-average filter and subtracts it. Persisted across launches.
+- **Live "now"** — shows the actual OPST reading when fresh (≤90 min), labelled honestly vs forecast.
+- **Multi-model blend** — temperature is the equal-weight mean of ECMWF/GFS/ICON/GEM, not a single model.
+- **Honest confidence** — model-agreement bar hidden when unavailable (no fabricated %).
+- **Agronomy** — ET₀ irrigation logic, GDD, buffered frost/heat alerts, livestock THI.
+- **Layers** — NASA GIBS IMERG satellite-rain overlay (covers Pakistan) + GloFAS river-discharge flood watch (Chenab basin).
+
+All data sources are **keyless and free** (Open-Meteo, NOAA AWC METAR, RainViewer, NASA GIBS). No API keys, no secrets.
 
 ## Build the APK
 
-### Prerequisites (one-time, local builds)
-- Install **Flutter** (stable): https://docs.flutter.dev/get-started/install
-- Install **Android Studio** (provides the Android SDK).
-- Verify: `flutter doctor` — "Android toolchain" should be all green.
+### On Codemagic (CI — recommended, no local toolchain needed)
+The repo ships `lib/` + `pubspec.yaml` + the permissions manifest. `codemagic.yaml` scaffolds the Android platform, enables desugaring (for `flutter_local_notifications`), and builds the release APK. Connect the repo on codemagic.io → run the `android-release` workflow → download the APK artifact.
 
-### Steps
+### Locally (if you have the Flutter SDK)
 ```bash
-# 1. unzip, then from inside the project folder:
-cd changi_agriweather
-
-# 2. get packages
+flutter create --org com.echooo --project-name changi_agriweather --platforms android .
 flutter pub get
-
-# 3. build the release APK
 flutter build apk --release
+# → build/app/outputs/flutter-apk/app-release.apk
 ```
-Installable file:
-```
-build/app/outputs/flutter-apk/app-release.apk
-```
-Copy that `.apk` to any Android phone and install (allow "install from unknown sources").
+`flutter create` skips existing files, so the provided `AndroidManifest.xml` (internet + notification permissions) is preserved. If the notifications plugin fails to compile, enable core-library desugaring in `android/app/build.gradle(.kts)` — see `codemagic.yaml` for the exact lines.
 
-- App bundle for Play Store: `flutter build appbundle --release`
-- Smaller per-CPU APKs: `flutter build apk --split-per-abi`
-- Preview on a connected device/emulator: `flutter run`
-
-### If your builder reports a missing Gradle wrapper
-Some minimal environments don't ship the Gradle wrapper binary. If you see a `gradlew not found` / wrapper error, run this once — it regenerates ONLY the missing platform glue and keeps all the provided source:
-```bash
-flutter create --platforms=android --org com.echooo .
-```
-Then re-confirm these three lines are still in `android/app/src/main/AndroidManifest.xml` (re-add if needed), and rebuild:
-```xml
-<uses-permission android:name="android.permission.INTERNET"/>
-<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
-<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-```
-
----
-
-## No-toolchain option (build in the cloud, free)
-Push this project to GitHub and build with a free runner — the command is the same (`flutter build apk --release`):
-- **Codemagic** — connect repo, choose "Flutter App", build, download the APK artifact.
-- **GitHub Actions** — use `subosito/flutter-action`, then `flutter build apk --release`, upload the APK as an artifact.
-
----
-
-## What's included
-
-```
-changi_agriweather/
-├── pubspec.yaml                         # dependencies
-├── analysis_options.yaml
-├── README.md
-├── lib/                                 # the full app (20 Dart files, ~2950 lines)
-│   ├── main.dart  app.dart
-│   ├── theme/     (colors, theme, type)
-│   ├── l10n/      (English + Urdu strings)
-│   ├── models/    (weather data models)
-│   ├── services/  (Open-Meteo, cache, notifications)
-│   ├── logic/     (farm decision rules)
-│   ├── widgets/   (rain canvas, CAPE ring, bars, dots, cards)
-│   └── screens/   (5 screens + nav shell + icons)
-└── android/                             # COMPLETE platform folder (v2 embedding)
-    ├── build.gradle  settings.gradle  gradle.properties
-    ├── gradle/wrapper/gradle-wrapper.properties
-    └── app/
-        ├── build.gradle
-        └── src/main/
-            ├── AndroidManifest.xml      (internet + notification permissions, v2 marker)
-            ├── kotlin/com/echooo/changi_agriweather/MainActivity.kt
-            └── res/  (styles, launch background, ic_launcher icons @ 5 densities)
-```
-
----
-
-## How it works (for your developer)
-
-- **Data:** `lib/services/weather_service.dart` makes two Open-Meteo calls — one "best match" call for the rich agricultural fields (CAPE, soil moisture, ET₀, VPD), and one multi-model call (ECMWF, GFS, ICON, GEM) for the comparison bars and model-agreement %. No API key.
-- **Caching:** `lib/services/cache_service.dart` stores the last good forecast as JSON via `shared_preferences`. The app shows cached data instantly on launch, then refreshes in the background. Pull-to-refresh forces an update.
-- **Farm logic:** `lib/logic/farm_decisions.dart` holds the transparent, tunable rules for irrigation HOLD/GO, spray Safe/Marginal/Unsafe, harvest windows, storm alerts and urea timing — every output exposes the numbers behind it. Tune thresholds at the top of that file.
-- **Animations:** `rain_canvas.dart` (particle field scaling to precipitation), `cape_ring.dart` (animated gauge), `common_widgets.dart` (`AnimatedBar`, `PulsingDot`).
-- **Radar:** `radar_screen.dart` pulls RainViewer's tile manifest and overlays the latest frame on a dark map. Ground-radar status is shown **honestly** (PMD Sialkot = feed gap, IMD Amritsar = upstream alternative).
-- **Localization:** `lib/l10n/strings.dart` — English + Urdu. Urdu switches the whole UI to RTL automatically. Toggle via the globe icon on the Now screen.
-- **Notifications:** `lib/services/notification_service.dart` fires local alerts (rain soon, high CAPE tonight, spray window open) when a fresh forecast loads.
-
-### Background alerts (optional enhancement)
-Alerts currently evaluate on foreground refresh. For always-on delivery when the app is closed, add [`workmanager`](https://pub.dev/packages/workmanager) and call `NotificationService.evaluateAndNotify` from a periodic background task.
-
----
-
-## Customizing
-- **Farm location:** `lat`, `lon`, `placeName` in `lib/app.dart` (`AppController`).
-- **Decision thresholds:** top of `lib/logic/farm_decisions.dart`.
-- **Colors / fonts:** `lib/theme/app_colors.dart`, `lib/theme/app_theme.dart`.
-- **App name under the icon:** `android:label` in `android/app/src/main/AndroidManifest.xml`.
-- **Package / application id:** `com.echooo.changi_agriweather` (in `android/app/build.gradle` and the MainActivity path).
-
----
+## Customising
+- **Location / thresholds:** `lib/core/constants/api_constants.dart` (lat/lon) and `lib/features/farm/domain/farm_decisions.dart` (decision thresholds).
+- **Colours / type / spacing:** `lib/core/theme/`.
+- **Strings (EN/UR):** `lib/core/l10n/strings.dart`.
 
 ## Honest notes
-- All code is written and statically checked. On first `flutter pub get` you may need `flutter pub upgrade` if a plugin version has moved since packaging — the structure is sound.
-- The Gradle config targets AGP 8.1 / Kotlin 1.8.22 / Gradle 8.3, compatible with current stable Flutter. Very new Flutter releases may print deprecation warnings but still build.
-- NASA GPM IMERG satellite rainfall needs a free Earthdata login, so it's listed as a source but not wired as a live layer in v1 (RainViewer radar is the live overlay).
-- Google Fonts fetches Space Grotesk + JetBrains Mono on first launch and caches them; fully-offline first run falls back to system fonts gracefully.
+- Forecasts are never 100% accurate — chaos caps useful skill at ~7–10 days. The bias correction + blend squeeze the real gains for a fixed point; the UI labels provenance rather than overclaiming.
+- Pakistan has no public ground-radar feed, so the live precipitation layer is satellite QPE (~10 km, ~30–60 min), not street-level radar. Labelled as such.
+- Built without a local compiler in the authoring environment — first CI build may surface a Gradle/SDK tweak (notifications desugaring is the likely one; handled in `codemagic.yaml`).

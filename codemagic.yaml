@@ -1,0 +1,39 @@
+workflows:
+  android-release:
+    name: Changi AgriWeather — Android APK
+    instance_type: linux_x2
+    max_build_duration: 45
+    environment:
+      flutter: stable
+    scripts:
+      - name: Generate platform scaffolding (keeps lib/ and the manifest)
+        # The repo ships lib/ + pubspec + the permissions manifest only.
+        # `flutter create` adds android/ gradle + MainActivity and SKIPS any
+        # file that already exists (so our AndroidManifest.xml is preserved).
+        script: |
+          flutter create --org com.echooo --project-name changi_agriweather --platforms android .
+      - name: Enable core library desugaring (flutter_local_notifications v17)
+        # v17 requires Java 8+ desugaring. Patch the freshly generated Gradle
+        # file idempotently; supports both Groovy and Kotlin DSL.
+        script: |
+          GRADLE_KTS="android/app/build.gradle.kts"
+          GRADLE_GROOVY="android/app/build.gradle"
+          if [ -f "$GRADLE_KTS" ]; then
+            grep -q "isCoreLibraryDesugaringEnabled" "$GRADLE_KTS" || \
+              sed -i 's/compileOptions {/compileOptions {\n        isCoreLibraryDesugaringEnabled = true/' "$GRADLE_KTS"
+            grep -q "desugar_jdk_libs" "$GRADLE_KTS" || \
+              printf '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")\n}\n' >> "$GRADLE_KTS"
+          elif [ -f "$GRADLE_GROOVY" ]; then
+            grep -q "coreLibraryDesugaringEnabled" "$GRADLE_GROOVY" || \
+              sed -i 's/compileOptions {/compileOptions {\n        coreLibraryDesugaringEnabled true/' "$GRADLE_GROOVY"
+            grep -q "desugar_jdk_libs" "$GRADLE_GROOVY" || \
+              printf '\ndependencies {\n    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.0.4"\n}\n' >> "$GRADLE_GROOVY"
+          fi
+      - name: Get packages
+        script: flutter pub get
+      - name: Analyze (non-blocking)
+        script: flutter analyze || true
+      - name: Build release APK
+        script: flutter build apk --release
+    artifacts:
+      - build/**/outputs/**/*.apk
