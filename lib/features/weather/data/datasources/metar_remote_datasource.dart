@@ -45,6 +45,7 @@ class MetarRemoteDataSourceImpl implements MetarRemoteDataSource {
           time: DateTime.fromMillisecondsSinceEpoch(bestEpoch * 1000,
                   isUtc: true)
               .toLocal(),
+          precipNow: _hasPrecip(best['wxString']),
         );
         if (obs.isFresh) return obs;
         if (freshestStale == null || obs.time.isAfter(freshestStale.time)) {
@@ -55,5 +56,13 @@ class MetarRemoteDataSourceImpl implements MetarRemoteDataSource {
       }
     }
     return freshestStale;
+  }
+
+  /// True when the METAR present-weather group reports any precipitation.
+  static bool _hasPrecip(dynamic wxString) {
+    if (wxString is! String || wxString.isEmpty) return false;
+    final wx = wxString.toUpperCase();
+    const tokens = ['RA', 'DZ', 'SN', 'SG', 'PL', 'GR', 'GS', 'SH', 'TS', 'UP'];
+    return tokens.any(wx.contains);
   }
 }

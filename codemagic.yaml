@@ -33,7 +33,7 @@ workflows:
         script: flutter pub get
       - name: Analyze (non-blocking)
         script: flutter analyze || true
-      - name: Build release APK
-        script: flutter build apk --release
+      - name: Build release APK (per-ABI, phone-installable)
+        script: flutter build apk --release --split-per-abi
     artifacts:
       - build/**/outputs/**/*.apk

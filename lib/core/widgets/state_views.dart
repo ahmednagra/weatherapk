@@ -1,25 +1,50 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 
-/// Shared loading state — every async screen renders this while fetching.
+/// Shared loading state — shimmer skeleton cards plus a status label.
 class LoadingView extends StatelessWidget {
   final String message;
   const LoadingView({super.key, required this.message});
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const CircularProgressIndicator(color: AppColors.rainCyan),
-          const SizedBox(height: AppSpacing.xxl),
-          Text(message, style: AppTypography.label(size: 12)),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.xxl, AppSpacing.xxl, AppSpacing.xxl, AppSpacing.xxl),
+      children: [
+        Center(child: Text(message, style: AppTypography.label(size: 12))),
+        const SizedBox(height: AppSpacing.xxl),
+        for (var i = 0; i < 4; i++) ...[
+          const _SkeletonCard(),
+          const SizedBox(height: AppSpacing.xl),
         ],
-      ),
+      ],
     );
+  }
+}
+
+/// A single shimmering placeholder card.
+class _SkeletonCard extends StatelessWidget {
+  const _SkeletonCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 84,
+      decoration: BoxDecoration(
+        color: AppColors.cardSurface,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+    )
+        .animate(onPlay: (c) => c.repeat())
+        .shimmer(
+          duration: 1200.ms,
+          color: AppColors.rainCyan.withOpacity(AppSpacing.opacityLight),
+        );
   }
 }
 

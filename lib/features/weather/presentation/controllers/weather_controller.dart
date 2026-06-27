@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../farm/domain/entities/farm_models.dart';
 import '../../domain/entities/weather_bundle.dart';
 import '../providers/di_providers.dart';
 import '../providers/feature_providers.dart';
@@ -59,7 +60,10 @@ class WeatherController extends AsyncNotifier<WeatherState> {
   }
 
   void _onFresh(WeatherBundle bundle) {
-    ref.read(notificationServiceProvider).evaluateAndNotify(bundle);
+    final crop = CropProfile.byId(ref.read(weatherLocalProvider).getCrop());
+    ref
+        .read(notificationServiceProvider)
+        .evaluateAndNotify(bundle, profile: crop);
   }
 }
 

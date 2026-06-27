@@ -46,20 +46,39 @@ class WeatherRepositoryImpl implements WeatherRepository {
           : const Err<WeatherBundle>(NetworkFailure());
     }
     try {
-      final raw =
+      final (raw, modelTemps) =
           await _remote.fetchForecast(lat: lat, lon: lon, placeName: placeName);
 
-      // Ground-truth bias correction against the nearest airport.
       var bias = _local.getBias();
       final obs = await _metar.fetchLatest();
-      if (obs != null && obs.isFresh) {
-        final err = BiasCorrector.errorAt(raw, obs.tempC, obs.time);
-        if (err != null) {
-          bias = BiasCorrector.update(bias, err, obs.time);
-          await _local.saveBias(bias);
-        }
+      final fresh = obs != null && obs.isFresh;
+
+      // 1) Learn per-model skill from the live observation, then blend temps.
+      if (fresh) {
+        bias = BiasCorrector.learnModelErr(bias, modelTemps, obs.tempC, obs.time);
       }
-      var corrected = BiasCorrector.apply(raw, bias);
+      final weights = BiasCorrector.weights(bias, modelTemps.keys);
+      var bundle = BiasCorrector.blendTempsWeighted(raw, modelTemps, weights);
+
+      // 2) Learn residual temp/RH bias and precip-prob calibration vs METAR.
+      if (fresh) {
+        final tErr = BiasCorrector.errorAt(bundle, obs.tempC, obs.time);
+        if (tErr != null) bias = BiasCorrector.update(bias, tErr, obs.time);
+
+        final obsRh = BiasCorrector.rhFromDewpoint(obs.tempC, obs.dewpC);
+        final rhErr = BiasCorrector.rhErrorAt(bundle, obsRh, obs.time);
+        if (rhErr != null) bias = BiasCorrector.updateRh(bias, rhErr, obs.time);
+
+        final p = BiasCorrector.precipProbAt(bundle, obs.time);
+        if (p != null) bias = BiasCorrector.learnCal(bias, p, obs.precipNow);
+
+        await _local.saveBias(bias);
+      }
+
+      // 3) Apply every learned correction, attach the observation, cache.
+      var corrected = BiasCorrector.apply(bundle, bias);
+      corrected = BiasCorrector.applyRh(corrected, bias);
+      corrected = BiasCorrector.applyCal(corrected, bias);
       if (obs != null) corrected = corrected.copyWith(observed: obs);
 
       await _local.cacheForecast(corrected);

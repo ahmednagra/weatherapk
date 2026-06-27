@@ -7,11 +7,16 @@ import '../../domain/entities/hour_point.dart';
 import '../../domain/entities/model_precip.dart';
 import '../../domain/entities/weather_bundle.dart';
 
-/// Open-Meteo forecast source. Two calls: a rich best-match series for the
-/// agricultural fields, and a multi-model call whose temperature is blended
-/// (equal weight) over the best-match temperature. No API key.
+/// (bundle, per-model hourly temperature series) — the series is transient
+/// (used by the repository for skill-weighted blending) and is never cached.
+typedef RawForecast = (WeatherBundle, Map<String, Map<DateTime, double>>);
+
+/// Open-Meteo forecast source. Two calls: a rich best-match series (incl. a
+/// 15-min precip nowcast) for the agricultural fields, and a multi-model call
+/// whose per-model temperatures are returned for skill-weighted blending in the
+/// repository. No API key.
 abstract class WeatherRemoteDataSource {
-  Future<WeatherBundle> fetchForecast({
+  Future<RawForecast> fetchForecast({
     required double lat,
     required double lon,
     required String placeName,
@@ -22,8 +27,16 @@ class WeatherRemoteDataSourceImpl implements WeatherRemoteDataSource {
   final Dio _dio;
   const WeatherRemoteDataSourceImpl(this._dio);
 
+  /// Display label → Open-Meteo model suffix (single source of truth).
+  static const Map<String, String> _modelLabels = {
+    'ECMWF': 'ecmwf_ifs025',
+    'GFS': 'gfs_seamless',
+    'ICON': 'icon_seamless',
+    'GEM': 'gem_seamless',
+  };
+
   @override
-  Future<WeatherBundle> fetchForecast({
+  Future<RawForecast> fetchForecast({
     required double lat,
     required double lon,
     required String placeName,
@@ -31,6 +44,7 @@ class WeatherRemoteDataSourceImpl implements WeatherRemoteDataSource {
     final richUri = '${ApiConstants.openMeteoForecast}'
         '?latitude=$lat&longitude=$lon&timezone=Asia%2FKarachi'
         '&forecast_days=${ApiConstants.forecastDays}'
+        '&minutely_15=precipitation'
         '&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,'
         'precipitation,rain,cape,soil_moisture_0_to_1cm,'
         'et0_fao_evapotranspiration,vapour_pressure_deficit,'
@@ -53,27 +67,24 @@ class WeatherRemoteDataSourceImpl implements WeatherRemoteDataSource {
           statusCode: e.response?.statusCode);
     }
 
-    var hours = _parseHours(rich);
+    final hours = _parseHours(rich);
     final days = _parseDays(rich);
+    final minutely = _parseMinutely(rich);
 
     List<ModelPrecip> models = [];
     double? agreement; // null until a real multi-model spread is computed
+    Map<String, Map<DateTime, double>> modelTemps = {};
     try {
       final res = await _dio.get(modelUri);
       final mj = _asMap(res.data);
       models = _parseModels(mj);
       agreement = _computeAgreement(models);
-      final blend = _blendModelTemps(mj);
-      if (blend.isNotEmpty) {
-        hours = [
-          for (final h in hours) h.copyWith(tempC: blend[h.time] ?? h.tempC)
-        ];
-      }
+      modelTemps = _modelTempSeries(mj);
     } catch (_) {
       // Multi-model call is optional — degrade to best-match cleanly.
     }
 
-    return WeatherBundle(
+    final bundle = WeatherBundle(
       hours: hours,
       days: days,
       models: models,
@@ -82,7 +93,9 @@ class WeatherRemoteDataSourceImpl implements WeatherRemoteDataSource {
       placeName: placeName,
       lat: lat,
       lon: lon,
+      minutely: minutely,
     );
+    return (bundle, modelTemps);
   }
 
   static Map<String, dynamic> _asMap(dynamic data) => data is String
@@ -170,15 +183,9 @@ class WeatherRemoteDataSourceImpl implements WeatherRemoteDataSource {
     final d = j['daily'] as Map<String, dynamic>;
     final times = (h['time'] as List).cast<String>();
     final now = DateTime.now();
-    const labels = {
-      'ECMWF': 'ecmwf_ifs025',
-      'GFS': 'gfs_seamless',
-      'ICON': 'icon_seamless',
-      'GEM': 'gem_seamless',
-    };
 
     final out = <ModelPrecip>[];
-    labels.forEach((label, suffix) {
+    _modelLabels.forEach((label, suffix) {
       final hourly = h['precipitation_$suffix'];
       final daily = d['precipitation_sum_$suffix'];
       double next24 = 0;
@@ -204,25 +211,55 @@ class WeatherRemoteDataSourceImpl implements WeatherRemoteDataSource {
     return out;
   }
 
-  Map<DateTime, double> _blendModelTemps(Map<String, dynamic> j) {
+  /// 15-min precipitation nowcast for "now", capped to the next ~2h (8 steps).
+  List<HourPoint> _parseMinutely(Map<String, dynamic> j) {
+    final m = j['minutely_15'];
+    if (m is! Map<String, dynamic>) return const [];
+    final times = (m['time'] as List?)?.cast<String>() ?? const [];
+    final precip = m['precipitation'];
+    if (precip is! List) return const [];
+    final now = DateTime.now();
+    final out = <HourPoint>[];
+    for (var i = 0; i < times.length && out.length < 8; i++) {
+      final t = DateTime.parse(times[i]);
+      if (t.isBefore(now.subtract(const Duration(minutes: 15)))) continue;
+      final p = precip[i] == null ? 0.0 : (precip[i] as num).toDouble();
+      out.add(HourPoint(
+        time: t,
+        tempC: 0,
+        rh: 0,
+        precipProb: 0,
+        precipMm: p,
+        cape: 0,
+        soilMoisture: 0,
+        et0: 0,
+        vpd: 0,
+        windKmh: 0,
+        windDir: 0,
+        weatherCode: 0,
+      ));
+    }
+    return out;
+  }
+
+  /// Per-model hourly temperature series (label → time → °C) for the
+  /// skill-weighted blend performed in the repository.
+  Map<String, Map<DateTime, double>> _modelTempSeries(Map<String, dynamic> j) {
     final h = j['hourly'];
     if (h is! Map<String, dynamic>) return {};
-    final times = (h['time'] as List?)?.cast<String>() ?? [];
-    final cols = [
-      for (final s in ApiConstants.modelSuffixes) h['temperature_2m_$s']
-    ];
-    final out = <DateTime, double>{};
-    for (var i = 0; i < times.length; i++) {
-      double sum = 0;
-      int n = 0;
-      for (final c in cols) {
-        if (c is List && i < c.length && c[i] != null) {
-          sum += (c[i] as num).toDouble();
-          n++;
+    final times = (h['time'] as List?)?.cast<String>() ?? const [];
+    final out = <String, Map<DateTime, double>>{};
+    _modelLabels.forEach((label, suffix) {
+      final col = h['temperature_2m_$suffix'];
+      if (col is! List) return;
+      final series = <DateTime, double>{};
+      for (var i = 0; i < times.length && i < col.length; i++) {
+        if (col[i] != null) {
+          series[DateTime.parse(times[i])] = (col[i] as num).toDouble();
         }
       }
-      if (n > 0) out[DateTime.parse(times[i])] = sum / n;
-    }
+      if (series.isNotEmpty) out[label] = series;
+    });
     return out;
   }
 

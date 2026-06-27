@@ -86,6 +86,12 @@ class S {
     'flood_watch': 'Flood watch — discharge rising this week',
     'flood_steady': 'River discharge steady',
     'satellite_rain': 'NASA IMERG · satellite rain',
+    'crop': 'Crop',
+    'crop_wheat': 'Wheat',
+    'crop_rice': 'Rice',
+    'crop_sugarcane': 'Sugarcane',
+    'crop_maize': 'Maize',
+    'play_advisory': 'Play advisory',
   };
 
   static const Map<String, String> _ur = {
@@ -157,5 +163,11 @@ class S {
     'flood_watch': 'سیلاب انتباہ — اس ہفتے بہاؤ بڑھ رہا ہے',
     'flood_steady': 'دریائی بہاؤ مستحکم',
     'satellite_rain': 'ناسا IMERG · سیٹلائٹ بارش',
+    'crop': 'فصل',
+    'crop_wheat': 'گندم',
+    'crop_rice': 'چاول',
+    'crop_sugarcane': 'گنا',
+    'crop_maize': 'مکئی',
+    'play_advisory': 'مشورہ سنیں',
   };
 }

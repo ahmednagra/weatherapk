@@ -19,6 +19,7 @@ class WeatherBundleDto {
         'lat': b.lat,
         'lon': b.lon,
         'observed': b.observed == null ? null : _metarToJson(b.observed!),
+        'min': b.minutely.map(_hourToJson).toList(),
       };
 
   static WeatherBundle fromJson(Map<String, dynamic> j) => WeatherBundle(
@@ -33,6 +34,10 @@ class WeatherBundleDto {
         observed: j['observed'] == null
             ? null
             : _metarFromJson(j['observed'] as Map<String, dynamic>),
+        minutely: (j['min'] as List?)
+                ?.map((e) => _hourFromJson(e as Map<String, dynamic>))
+                .toList() ??
+            const [],
       );
 
   static Map<String, dynamic> _hourToJson(HourPoint h) => {

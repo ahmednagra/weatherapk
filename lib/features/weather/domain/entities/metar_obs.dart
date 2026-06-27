@@ -9,6 +9,7 @@ class MetarObs extends Equatable {
   final double dewpC;
   final double windKmh;
   final DateTime time; // device-local
+  final bool precipNow; // present-weather reports precipitation
 
   const MetarObs({
     required this.station,
@@ -16,6 +17,7 @@ class MetarObs extends Equatable {
     required this.dewpC,
     required this.windKmh,
     required this.time,
+    this.precipNow = false,
   });
 
   bool get isFresh =>
@@ -24,5 +26,6 @@ class MetarObs extends Equatable {
   int get ageMinutes => DateTime.now().difference(time).inMinutes;
 
   @override
-  List<Object?> get props => [station, tempC, dewpC, windKmh, time];
+  List<Object?> get props =>
+      [station, tempC, dewpC, windKmh, time, precipNow];
 }

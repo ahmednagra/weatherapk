@@ -1,4 +1,5 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../../features/farm/domain/entities/farm_models.dart';
 import '../../features/farm/domain/farm_decisions.dart';
 import '../../features/weather/domain/entities/weather_bundle.dart';
 
@@ -33,7 +34,14 @@ class NotificationService {
     await _plugin.show(id, title, body, details);
   }
 
-  Future<void> evaluateAndNotify(WeatherBundle w) async {
+  Future<void> evaluateAndNotify(WeatherBundle w,
+      {CropProfile profile = CropProfile.wheat}) async {
+    final startsIn = w.rainStartsInMin;
+    if (startsIn != null && startsIn <= 30) {
+      await _show(5, 'Rain starting soon',
+          'Rain likely in about $startsIn min at ${w.placeName}.');
+    }
+
     final next3 = w.nextHours(3);
     if (next3.any((h) => h.precipProb >= 60 || h.precipMm >= 1)) {
       await _show(1, 'Rain likely soon',
@@ -47,7 +55,7 @@ class NotificationService {
               'in low-lying fields — take precautions.');
     }
 
-    final fd = FarmDecisions(w);
+    final fd = FarmDecisions(w, profile: profile);
     final open = fd.sprayWindows().where((s) => s.status == 'safe').toList();
     if (open.isNotEmpty) {
       await _show(3, 'Spray window open',
@@ -55,7 +63,7 @@ class NotificationService {
     }
 
     for (final d in w.days.take(7)) {
-      if (d.tMin <= FarmDecisions.frostThreshold) {
+      if (d.tMin <= fd.frostThreshold) {
         await _show(4, 'Frost risk ahead',
             'Forecast low ${d.tMin.toStringAsFixed(0)}°C. Protect sensitive '
                 'crops; canopy can run colder than the screen reading.');

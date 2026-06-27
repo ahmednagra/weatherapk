@@ -31,8 +31,23 @@ dependencies:
   flutter_local_notifications: ^17.2.3
   google_fonts: ^6.2.1
 
+  # UI: Material You dynamic color, motion, 3D weather animations
+  dynamic_color: ^1.7.0
+  flutter_animate: ^4.5.0
+  rive: ^0.13.20
+
+  # Farmer features: background alerts, home-screen widget, Urdu voice advisory
+  workmanager: ^0.5.2
+  home_widget: ^0.6.0
+  flutter_tts: ^4.0.2
+
 dev_dependencies:
   flutter_lints: ^4.0.0
+  flutter_test:
+    sdk: flutter
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/wx/
+    - assets/rive/

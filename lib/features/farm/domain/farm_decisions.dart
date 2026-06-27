@@ -6,17 +6,21 @@ import 'entities/farm_models.dart';
 /// Tune the thresholds at the top.
 class FarmDecisions {
   final WeatherBundle w;
-  const FarmDecisions(this.w);
+  final CropProfile profile;
+  const FarmDecisions(this.w, {this.profile = CropProfile.wheat});
 
+  // Universal/operational thresholds (not crop-specific).
   static const double capeHigh = 2500; // J/kg
-  static const double soilHealthy = 0.30; // m³/m³ surface (~30%)
   static const double sprayWindMax = 20; // km/h
   static const double rainProbUnsafe = 60; // %
   static const double rainProbMarginal = 35;
-  static const double frostThreshold = 2.0; // °C (radiative buffer)
-  static const double heatThreshold = 40.0; // °C extreme-heat advisory
   static const double thiAlert = 72.0; // livestock heat-stress index
-  static const double gddBase = 0.0; // wheat base temperature
+
+  // Crop-specific thresholds come from the active [profile].
+  double get soilHealthy => profile.soilHealthy;
+  double get frostThreshold => profile.frostThreshold;
+  double get heatThreshold => profile.heatThreshold;
+  double get gddBase => profile.gddBase;
 
   double get soilPct => w.current.soilMoisture * 100;
 

@@ -18,13 +18,14 @@ class DayPoint extends Equatable {
     required this.precipProbMax,
   });
 
-  DayPoint copyWith({double? tMax, double? tMin}) => DayPoint(
+  DayPoint copyWith({double? tMax, double? tMin, double? precipProbMax}) =>
+      DayPoint(
         date: date,
         weatherCode: weatherCode,
         tMax: tMax ?? this.tMax,
         tMin: tMin ?? this.tMin,
         precipSum: precipSum,
-        precipProbMax: precipProbMax,
+        precipProbMax: precipProbMax ?? this.precipProbMax,
       );
 
   @override

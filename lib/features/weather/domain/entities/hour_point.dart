@@ -30,11 +30,12 @@ class HourPoint extends Equatable {
     required this.weatherCode,
   });
 
-  HourPoint copyWith({double? tempC}) => HourPoint(
+  HourPoint copyWith({double? tempC, double? rh, double? precipProb}) =>
+      HourPoint(
         time: time,
         tempC: tempC ?? this.tempC,
-        rh: rh,
-        precipProb: precipProb,
+        rh: rh ?? this.rh,
+        precipProb: precipProb ?? this.precipProb,
         precipMm: precipMm,
         cape: cape,
         soilMoisture: soilMoisture,

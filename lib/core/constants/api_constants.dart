@@ -28,12 +28,6 @@ class ApiConstants {
   // Multi-model set for the precipitation/temperature blend.
   static const String forecastModels =
       'ecmwf_ifs025,gfs_seamless,icon_seamless,gem_seamless';
-  static const List<String> modelSuffixes = [
-    'ecmwf_ifs025',
-    'gfs_seamless',
-    'icon_seamless',
-    'gem_seamless',
-  ];
 
   // Nearest airport observation stations (Sialkot, then Lahore fallback).
   static const List<String> metarStations = ['OPST', 'OPLA'];

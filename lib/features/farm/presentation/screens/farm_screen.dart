@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 
 import '../../../../core/l10n/strings.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/app_widgets.dart';
 import '../../../../core/widgets/state_views.dart';
+import '../../../weather/presentation/controllers/locale_controller.dart';
 import '../../../weather/presentation/controllers/weather_controller.dart';
 import '../../domain/entities/farm_models.dart';
 import '../../domain/farm_decisions.dart';
@@ -19,7 +22,8 @@ class FarmScreen extends ConsumerWidget {
     final state = ref.watch(weatherControllerProvider).valueOrNull;
     if (state == null) return EmptyState(message: s.t('loading'));
     final w = state.bundle;
-    final fd = FarmDecisions(w);
+    final profile = CropProfile.byId(ref.watch(cropControllerProvider));
+    final fd = FarmDecisions(w, profile: profile);
     final actions = fd.actions();
     final irr = fd.irrigation();
     final windows = fd.sprayWindows();
@@ -38,6 +42,7 @@ class FarmScreen extends ConsumerWidget {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         children: [
+          _cropAndVoiceBar(context, s, ref, profile, actions),
           SectionCard(
             title: '${s.t('farm_actions')} · $freshness',
             icon: Icons.eco,
@@ -56,6 +61,54 @@ class FarmScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  /// Crop selector + Urdu/English voice-advisory control.
+  Widget _cropAndVoiceBar(BuildContext context, S s, WidgetRef ref,
+      CropProfile profile, List<FarmAction> actions) {
+    return SectionCard(
+      title: s.t('crop'),
+      icon: Icons.agriculture,
+      child: Row(
+        children: [
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: profile.id,
+                isExpanded: true,
+                dropdownColor: AppColors.navSurface,
+                style: AppTypography.title(size: 13),
+                items: [
+                  for (final c in CropProfile.all)
+                    DropdownMenuItem(value: c.id, child: Text(s.t(c.labelKey))),
+                ],
+                onChanged: (id) {
+                  if (id != null) {
+                    ref.read(cropControllerProvider.notifier).setCrop(id);
+                  }
+                },
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.xl),
+          IconButton(
+            tooltip: s.t('play_advisory'),
+            onPressed: () => _speak(s, actions),
+            icon: const Icon(Icons.volume_up, color: AppColors.rainCyan),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Speak the advisory aloud in the active locale (ur-PK / en-US).
+  Future<void> _speak(S s, List<FarmAction> actions) async {
+    final tts = FlutterTts();
+    await tts.setLanguage(s.isUrdu ? 'ur-PK' : 'en-US');
+    await tts.setSpeechRate(0.45);
+    final text = actions.map((a) => '${a.title}. ${a.detail}').join(' ');
+    await tts.stop();
+    await tts.speak(text);
   }
 
   Color _levelColor(ActionLevel l) => switch (l) {

@@ -20,3 +20,18 @@ class LocaleController extends Notifier<Locale> {
 
 final localeControllerProvider =
     NotifierProvider<LocaleController, Locale>(LocaleController.new);
+
+/// Holds the active crop id (drives [FarmDecisions] thresholds). Reads the
+/// persisted id synchronously on build and persists on change.
+class CropController extends Notifier<String> {
+  @override
+  String build() => ref.read(weatherLocalProvider).getCrop();
+
+  Future<void> setCrop(String id) async {
+    await ref.read(weatherLocalProvider).saveCrop(id);
+    state = id;
+  }
+}
+
+final cropControllerProvider =
+    NotifierProvider<CropController, String>(CropController.new);

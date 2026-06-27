@@ -16,6 +16,7 @@ class WeatherBundle extends Equatable {
   final double lat;
   final double lon;
   final MetarObs? observed; // live ground truth, if any
+  final List<HourPoint> minutely; // 15-min precip nowcast (next ~2h)
 
   const WeatherBundle({
     required this.hours,
@@ -27,12 +28,14 @@ class WeatherBundle extends Equatable {
     required this.lat,
     required this.lon,
     this.observed,
+    this.minutely = const [],
   });
 
   WeatherBundle copyWith({
     List<HourPoint>? hours,
     List<DayPoint>? days,
     MetarObs? observed,
+    List<HourPoint>? minutely,
   }) =>
       WeatherBundle(
         hours: hours ?? this.hours,
@@ -44,7 +47,39 @@ class WeatherBundle extends Equatable {
         lat: lat,
         lon: lon,
         observed: observed ?? this.observed,
+        minutely: minutely ?? this.minutely,
       );
+
+  /// Minutes until precipitation begins (≥0.1 mm in a 15-min step), or null if
+  /// it's already raining / no rain in the nowcast window.
+  int? get rainStartsInMin {
+    if (minutely.isEmpty) return null;
+    final now = DateTime.now();
+    final future = minutely.where((s) => s.time.isAfter(now)).toList();
+    if (future.isEmpty || future.first.precipMm >= 0.1) return null;
+    for (final s in future) {
+      if (s.precipMm >= 0.1) {
+        final m = s.time.difference(now).inMinutes;
+        return m < 0 ? 0 : m;
+      }
+    }
+    return null;
+  }
+
+  /// Minutes until precipitation stops, only meaningful when raining now.
+  int? get rainStopsInMin {
+    if (minutely.isEmpty) return null;
+    final now = DateTime.now();
+    final future = minutely.where((s) => !s.time.isBefore(now)).toList();
+    if (future.isEmpty || future.first.precipMm < 0.1) return null;
+    for (final s in future) {
+      if (s.precipMm < 0.1) {
+        final m = s.time.difference(now).inMinutes;
+        return m < 0 ? 0 : m;
+      }
+    }
+    return null;
+  }
 
   /// Temperature to show for "now": live station reading when fresh, otherwise
   /// the (bias-corrected) nearest forecast hour.
@@ -106,6 +141,16 @@ class WeatherBundle extends Equatable {
   }
 
   @override
-  List<Object?> get props =>
-      [hours, days, models, fetchedAt, agreement, placeName, lat, lon, observed];
+  List<Object?> get props => [
+        hours,
+        days,
+        models,
+        fetchedAt,
+        agreement,
+        placeName,
+        lat,
+        lon,
+        observed,
+        minutely,
+      ];
 }

@@ -14,6 +14,8 @@ abstract class WeatherLocalDataSource {
   Future<void> saveBias(TempBias bias);
   String getLanguage();
   Future<void> saveLanguage(String code);
+  String getCrop();
+  Future<void> saveCrop(String id);
 }
 
 class WeatherLocalDataSourceImpl implements WeatherLocalDataSource {
@@ -22,7 +24,13 @@ class WeatherLocalDataSourceImpl implements WeatherLocalDataSource {
   static const _kBiasDay = 'bias_day';
   static const _kBiasNight = 'bias_night';
   static const _kBiasSeeded = 'bias_seeded';
+  static const _kBiasRhDay = 'bias_rh_day';
+  static const _kBiasRhNight = 'bias_rh_night';
+  static const _kBiasRhSeeded = 'bias_rh_seeded';
+  static const _kModelMae = 'model_mae';
+  static const _kPrecipCal = 'precip_cal';
   static const _kLang = 'lang';
+  static const _kCrop = 'crop';
 
   final Box _box;
   const WeatherLocalDataSourceImpl(this._box);
@@ -47,6 +55,11 @@ class WeatherLocalDataSourceImpl implements WeatherLocalDataSource {
         day: (_box.get(_kBiasDay) as num?)?.toDouble() ?? 0,
         night: (_box.get(_kBiasNight) as num?)?.toDouble() ?? 0,
         seeded: _box.get(_kBiasSeeded) as bool? ?? false,
+        rhDay: (_box.get(_kBiasRhDay) as num?)?.toDouble() ?? 0,
+        rhNight: (_box.get(_kBiasRhNight) as num?)?.toDouble() ?? 0,
+        rhSeeded: _box.get(_kBiasRhSeeded) as bool? ?? false,
+        modelMae: _decodeMae(_box.get(_kModelMae)),
+        precipDeciles: _decodeDeciles(_box.get(_kPrecipCal)),
       );
 
   @override
@@ -54,6 +67,32 @@ class WeatherLocalDataSourceImpl implements WeatherLocalDataSource {
     await _box.put(_kBiasDay, bias.day);
     await _box.put(_kBiasNight, bias.night);
     await _box.put(_kBiasSeeded, bias.seeded);
+    await _box.put(_kBiasRhDay, bias.rhDay);
+    await _box.put(_kBiasRhNight, bias.rhNight);
+    await _box.put(_kBiasRhSeeded, bias.rhSeeded);
+    await _box.put(_kModelMae, jsonEncode(bias.modelMae));
+    await _box.put(_kPrecipCal, jsonEncode(bias.precipDeciles));
+  }
+
+  static Map<String, double> _decodeMae(dynamic raw) {
+    if (raw is! String || raw.isEmpty) return const {};
+    try {
+      final m = jsonDecode(raw) as Map<String, dynamic>;
+      return m.map((k, v) => MapEntry(k, (v as num).toDouble()));
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  static List<double> _decodeDeciles(dynamic raw) {
+    if (raw is! String || raw.isEmpty) return const [];
+    try {
+      return (jsonDecode(raw) as List)
+          .map((e) => (e as num).toDouble())
+          .toList();
+    } catch (_) {
+      return const [];
+    }
   }
 
   @override
@@ -61,4 +100,10 @@ class WeatherLocalDataSourceImpl implements WeatherLocalDataSource {
 
   @override
   Future<void> saveLanguage(String code) => _box.put(_kLang, code);
+
+  @override
+  String getCrop() => _box.get(_kCrop) as String? ?? 'wheat';
+
+  @override
+  Future<void> saveCrop(String id) => _box.put(_kCrop, id);
 }
